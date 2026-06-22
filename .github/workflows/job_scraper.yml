@@ -1,0 +1,59 @@
+name: Daily Job Digest
+
+on:
+  schedule:
+    # 07:00 UTC = 08:00 BST (UK summer) | 07:00 GMT (UK winter, one hour early)
+    - cron: '0 7 * * *'
+  workflow_dispatch:   # lets you trigger a test run manually from the Actions tab
+
+permissions:
+  contents: write      # needed to commit seen_jobs.json back to the repo
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install --quiet -r requirements.txt
+
+      - name: Run job scraper
+        id: scraper
+        run: python job_scraper.py
+
+      - name: Commit updated seen_jobs.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add seen_jobs.json
+          git diff --staged --quiet || git commit -m "chore: update seen jobs [skip ci]"
+          git push
+
+      - name: Set today's date for email subject
+        run: echo "EMAIL_DATE=$(date +'%d %b %Y')" >> "$GITHUB_ENV"
+
+      - name: Send digest email
+        if: steps.scraper.outputs.has_jobs == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          to: ${{ secrets.RECIPIENT_EMAIL }}
+          from: "Job Search Bot <${{ secrets.GMAIL_USERNAME }}>"
+          subject: "Daily Job Digest — ${{ env.EMAIL_DATE }}"
+          html_body: file://email_body.html
+
+      - name: Log when no new jobs found
+        if: steps.scraper.outputs.has_jobs != 'true'
+        run: echo "No new jobs today — email skipped."

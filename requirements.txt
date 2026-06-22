@@ -1,0 +1,8 @@
+python-jobspy>=1.1.80
+beautifulsoup4>=4.12.3
+lxml>=5.1.0
+requests>=2.31.0
+feedparser>=6.0.11
+pandas>=2.1.0
+langdetect>=1.0.9
+deep-translator>=1.11.4
